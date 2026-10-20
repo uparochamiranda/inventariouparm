@@ -181,9 +181,47 @@ async function saveEquipment(next) {
     controls.forEach((control,i) => control.disabled = prior[i]);
   }
 }
+let cameraSession = 0;
+let torchOn = false;
+function resetTorch() {
+  cameraSession++;
+  torchOn = false;
+  $('#toggle-torch').disabled = true;
+  $('#toggle-torch').textContent = 'Ligar lanterna';
+  $('#toggle-torch').setAttribute('aria-pressed', 'false');
+  $('#torch-status').textContent = 'Verificando suporte à lanterna…';
+}
+function prepareTorch() {
+  const track = $('#camera').srcObject?.getVideoTracks()[0];
+  const supported = track?.readyState === 'live' && track.getCapabilities?.().torch === true;
+  $('#toggle-torch').disabled = !supported;
+  $('#torch-status').textContent = supported ? 'Use a lanterna para iluminar a etiqueta.' : 'Lanterna indisponível nesta câmera ou navegador.';
+}
+async function toggleTorch() {
+  const track = $('#camera').srcObject?.getVideoTracks()[0];
+  if (!track || $('#toggle-torch').disabled) return;
+  const session = cameraSession;
+  const next = !torchOn;
+  $('#toggle-torch').disabled = true;
+  try {
+    await track.applyConstraints({ ...track.getConstraints(), advanced: [{ torch: next }] });
+    if (session !== cameraSession) return;
+    torchOn = track.getSettings().torch ?? next;
+    $('#toggle-torch').textContent = torchOn ? 'Desligar lanterna' : 'Ligar lanterna';
+    $('#toggle-torch').setAttribute('aria-pressed', String(torchOn));
+    $('#torch-status').textContent = torchOn ? 'Lanterna ligada.' : 'Lanterna desligada.';
+  } catch {
+    if (session !== cameraSession) return;
+    $('#torch-status').textContent = 'Não foi possível alterar a lanterna. Tente novamente.';
+  } finally {
+    if (session === cameraSession) $('#toggle-torch').disabled = false;
+  }
+}
 async function scan() {
   if (state.saving || !requireLogin()) return;
   const dialog = $('#camera-dialog'); dialog.showModal();
+  resetTorch();
+  const session = cameraSession;
   $('#camera-status').textContent = 'Abrindo câmera traseira…';
   try {
     await startScanner($('#camera'), code => {
@@ -192,13 +230,19 @@ async function scan() {
       toast('Código identificado. Confira os dados do equipamento.');
       checkCode();
     });
-    if (dialog.open) $('#camera-status').textContent = 'Posicione o código dentro da área de leitura.';
+    if (dialog.open && session === cameraSession) {
+      prepareTorch();
+      $('#camera-status').textContent = 'Posicione o código dentro da área de leitura.';
+    }
   } catch (error) {
+    if (session !== cameraSession) return;
     stopScanner($('#camera'));
+    resetTorch();
+    $('#torch-status').textContent = 'Lanterna indisponível sem a câmera aberta.';
     $('#camera-status').textContent = error.name === 'NotAllowedError' ? 'Permissão de câmera negada. Autorize no navegador ou digite o código.' : error.message;
   }
 }
-function closeCamera() { stopScanner($('#camera')); $('#camera-dialog').close(); }
+function closeCamera() { resetTorch(); stopScanner($('#camera')); $('#camera-dialog').close(); }
 async function checkCode() {
   const input = $('#codigo');
   if (!signedIn() || !input?.value.trim() || state.editing || state.saving) return;
@@ -316,9 +360,10 @@ document.addEventListener('change', event => {
 modal.addEventListener('cancel', event => { if (state.saving) event.preventDefault(); });
 $('#close-camera').onclick = closeCamera;
 $('#manual-camera').onclick = enterCodeManually;
-$('#camera-dialog').addEventListener('cancel', () => stopScanner($('#camera')));
+$('#toggle-torch').onclick = toggleTorch;
+$('#camera-dialog').addEventListener('cancel', closeCamera);
 window.addEventListener('hashchange', () => { readDraft(); closeCamera(); render(); });
-window.addEventListener('pagehide', () => stopScanner($('#camera')));
+window.addEventListener('pagehide', closeCamera);
 window.addEventListener('beforeunload', event => {
   if (state.saving || state.draft.codigo || state.draft.patrimonio || state.draft.observacao) { event.preventDefault(); event.returnValue = ''; }
 });

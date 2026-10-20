@@ -100,6 +100,8 @@ try {
   const manualSector=await page.inputValue('#setorId');
   const manualModel=await page.inputValue('#modeloId');
   await click('scan');await page.waitForFunction(()=>document.querySelector('#camera').srcObject?.active,null,{timeout:10000});
+  await page.waitForFunction(()=>document.querySelector('#torch-status').textContent.includes('indisponível'));
+  assert.equal(await page.locator('#toggle-torch').isDisabled(),true);
   await page.screenshot({path:'outputs/ui/camera-manual.png'});
   await page.locator('#manual-camera').click();
   assert.equal(await page.evaluate(()=>document.querySelector('#camera').srcObject),null);
@@ -110,6 +112,40 @@ try {
   await page.fill('#codigo','000MANUAL123');assert.equal(await page.inputValue('#codigo'),'000MANUAL123');
   await page.fill('#codigo','');await click('manual-entry');
   assert.equal(await page.locator('#codigo').evaluate(input=>document.activeElement===input),true);
+  // Simula apenas o suporte à lanterna: a câmera virtual não possui flash físico.
+  await page.evaluate(()=>{
+    const originalApply=MediaStreamTrack.prototype.applyConstraints;
+    const originalCapabilities=MediaStreamTrack.prototype.getCapabilities;
+    const originalSettings=MediaStreamTrack.prototype.getSettings;
+    const states=new WeakMap();
+    MediaStreamTrack.prototype.getCapabilities=function(){return {...originalCapabilities.call(this),torch:true};};
+    MediaStreamTrack.prototype.getSettings=function(){return {...originalSettings.call(this),torch:states.get(this)||false};};
+    MediaStreamTrack.prototype.applyConstraints=function(constraints){
+      const torch=constraints?.advanced?.find(item=>'torch' in item);
+      if (!torch) return originalApply.call(this,constraints);
+      if (window.failTorch) return Promise.reject(new Error('Simulated device failure'));
+      states.set(this,torch.torch);return Promise.resolve();
+    };
+  });
+  await click('scan');await page.waitForFunction(()=>!document.querySelector('#toggle-torch').disabled);
+  await page.locator('#toggle-torch').click();
+  await page.waitForFunction(()=>document.querySelector('#toggle-torch').getAttribute('aria-pressed')==='true');
+  assert.equal(await page.locator('#toggle-torch').innerText(),'Desligar lanterna');
+  await page.screenshot({path:'outputs/ui/camera-torch.png'});
+  await page.locator('#toggle-torch').click();
+  await page.waitForFunction(()=>document.querySelector('#toggle-torch').getAttribute('aria-pressed')==='false');
+  await page.evaluate(()=>{window.failTorch=true;});await page.locator('#toggle-torch').click();
+  await page.waitForFunction(()=>document.querySelector('#torch-status').textContent.includes('Tente novamente'));
+  assert.equal(await page.locator('#toggle-torch').isDisabled(),false);
+  await page.evaluate(()=>{window.failTorch=false;});await page.locator('#toggle-torch').click();
+  await page.waitForFunction(()=>document.querySelector('#toggle-torch').getAttribute('aria-pressed')==='true');
+  await page.evaluate(()=>{window.lastCameraTrack=document.querySelector('#camera').srcObject.getVideoTracks()[0];});
+  await page.locator('#close-camera').click();
+  assert.equal(await page.evaluate(()=>window.lastCameraTrack.readyState),'ended');
+  assert.equal(await page.locator('#toggle-torch').getAttribute('aria-pressed'),'false');
+  await click('scan');await page.waitForFunction(()=>!document.querySelector('#toggle-torch').disabled);
+  assert.equal(await page.locator('#toggle-torch').getAttribute('aria-pressed'),'false');
+  await page.locator('#manual-camera').click();
   await page.locator('[data-nav=consulta]').click();await page.waitForFunction(()=>document.querySelector('#query-results').textContent.includes('encontrados'));
   await page.fill('#query-search','0099');await page.waitForFunction(()=>document.querySelector('#query-results').textContent.includes('1 equipamento encontrado'));
   await page.locator('[data-nav=cadastros]').click();await wait('#catalog-list');
@@ -142,5 +178,5 @@ try {
   assert.equal(await publicPage.locator('#equipment-form').count(),0);
   assert.deepEqual(errors,[]);
   console.log('PASS: POST em iframe com relay de origem validada; login simulado; dois modos; modelo e setor em sessão; salvar/próximo; duplicado; editar; filtros; câmera virtual encerrada; celular sem overflow; timeout sem falso sucesso e repetição sem duplicar; integração não configurada bloqueia gravação.');
-  console.log('Google Sheets real e câmera física NÃO testados por este teste.');
+  console.log('PASS: lanterna simulada liga/desliga, informa falta de suporte, trata falha e encerra a câmera ao sair. Google Sheets real, câmera física e flash físico NÃO testados por este teste.');
 } finally { await browser.close(); }

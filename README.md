@@ -7,7 +7,7 @@ Site: https://uparochamiranda.github.io/inventariouparm/
 ## Funcionalidades
 
 - Inventário por setor fixo ou por setor individual, com contador da sessão.
-- Câmera traseira, digitação manual e leitor USB/Bluetooth.
+- Câmera traseira, lanterna em aparelhos compatíveis, digitação manual e leitor USB/Bluetooth.
 - Cadastro de modelos e setores sem sair do inventário, com fabricante automático.
 - Salvar e próximo, prevenção de duplicidades no servidor com LockService.
 - Consulta, filtros, edição com detecção de conflitos e indicadores simples.
