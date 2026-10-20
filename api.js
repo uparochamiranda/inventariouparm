@@ -1,8 +1,30 @@
 const config = window.INVENTARIO_CONFIG || {};
 const pending = new Map();
+const sessionKey = 'inventario-ti-google-session-v1';
 let token = '';
+// O prazo local evita reutilizar uma credencial vencida. A assinatura, a conta
+// autorizada e a validade continuam sendo verificadas pelo Apps Script.
+function credentialExpiry(value) {
+  try {
+    const part = value.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const claims = JSON.parse(atob(part.padEnd(Math.ceil(part.length / 4) * 4, '=')));
+    return typeof claims.exp === 'number' && Number.isFinite(claims.exp) ? claims.exp * 1000 : 0;
+  } catch { return 0; }
+}
+try {
+  const saved = JSON.parse(window.sessionStorage.getItem(sessionKey) || 'null');
+  if (saved?.clientId === config.googleClientId && credentialExpiry(saved.credential) > Date.now() + 30000) token = saved.credential;
+  else window.sessionStorage.removeItem(sessionKey);
+} catch { /* Armazenamento bloqueado: o login continua funcionando em memória. */ }
 export const configured = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(config.appsScriptUrl || '') && /^[\w.-]+\.apps\.googleusercontent\.com$/.test(config.googleClientId || '');
-export function setCredential(value) { token = value || ''; }
+export function setCredential(value) {
+  token = value || '';
+  try {
+    if (credentialExpiry(token) > Date.now() + 30000) {
+      window.sessionStorage.setItem(sessionKey, JSON.stringify({ clientId:config.googleClientId, credential:token }));
+    } else window.sessionStorage.removeItem(sessionKey);
+  } catch { /* Navegação privada ou armazenamento indisponível. */ }
+}
 export function signedIn() { return Boolean(token); }
 export function trustedOrigin(origin) {
   try {

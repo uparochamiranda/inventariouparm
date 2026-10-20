@@ -12,7 +12,9 @@ const page = await context.newPage();
 const errors=[]; page.on('pageerror',error => errors.push(error.message));
 const catalogs={setores:[{ID:'s1',NOME_SETOR:'Sala Amarela',ATIVO:'SIM'},{ID:'s2',NOME_SETOR:'Sala Azul',ATIVO:'SIM'}],tipos:[{ID:'t1',NOME_TIPO:'Desktop',ATIVO:'SIM'},{ID:'t2',NOME_TIPO:'Monitor',ATIVO:'SIM'}],modelos:[{ID:'m1',TIPO:'Desktop',FABRICANTE:'Dell',MODELO:'OptiPlex 3080',ATIVO:'SIM'},{ID:'m2',TIPO:'Monitor',FABRICANTE:'Dell',MODELO:'P2219H',ATIVO:'SIM'}]};
 const records=[]; const messages=new Map();
+const testCredential='eyJhbGciOiJSUzI1NiJ9.'+Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')+'.test-signature';
 let dropNextSaveReply = false;
+let rejectBootstrap = false;
 const indicators=() => ({total:records.length,today:records.length,setores:records.reduce((r,e) => ({...r,[e.SETOR]:(r[e.SETOR]||0)+1}),{}),tipos:records.reduce((r,e) => ({...r,[e.TIPO]:(r[e.TIPO]||0)+1}),{})});
 await context.route('http://localhost:4173/**',async route => {
   const relative = new URL(route.request().url()).pathname.slice(1) || 'index.html';
@@ -20,7 +22,7 @@ await context.route('http://localhost:4173/**',async route => {
   await route.fulfill({body,contentType:relative.endsWith('.css')?'text/css':relative.endsWith('.js')?'text/javascript':'text/html'});
 });
 await context.route('https://fonts.googleapis.com/**',route => route.abort());
-await context.route('https://accounts.google.com/gsi/client',route => route.fulfill({contentType:'text/javascript',body:`window.google={accounts:{id:{initialize(config){this.callback=config.callback},renderButton(target){let b=document.createElement('button');b.textContent='Entrar com Google (teste)';b.onclick=()=>this.callback({credential:'test-token'});target.append(b)},disableAutoSelect(){}}}};`}));
+await context.route('https://accounts.google.com/gsi/client',route => route.fulfill({contentType:'text/javascript',body:`window.google={accounts:{id:{initialize(config){this.callback=config.callback},renderButton(target){let b=document.createElement('button');b.textContent='Entrar com Google (teste)';b.onclick=()=>this.callback({credential:${JSON.stringify(testCredential)}});target.append(b)},prompt(){},disableAutoSelect(){}}}};`}));
 await context.route('**/config.js',route => route.fulfill({contentType:'text/javascript',body:`window.INVENTARIO_CONFIG={appsScriptUrl:'https://script.google.com/macros/s/test/exec',googleClientId:'test.apps.googleusercontent.com',requestTimeoutMs:5000};`}));
 await context.route('https://script.google.com/macros/s/test/exec',async route => {
   const request=JSON.parse(new URLSearchParams(route.request().postData()).get('payload'));
@@ -48,7 +50,9 @@ await context.route('https://script.google.com/macros/s/test/exec',async route =
     }
     default: throw new Error('Unexpected action '+request.action);
   }
-  messages.set(request.requestId,{channel:'inventario-ti-v1',requestId:request.requestId,ok:true,data});
+  messages.set(request.requestId,rejectBootstrap && request.action==='bootstrap'
+    ? {channel:'inventario-ti-v1',requestId:request.requestId,ok:false,error:{code:'UNAUTHORIZED',message:'Login inválido ou expirado.'}}
+    : {channel:'inventario-ti-v1',requestId:request.requestId,ok:true,data});
   if (request.action === 'saveEquipment' && dropNextSaveReply) {
     dropNextSaveReply = false;
     await route.fulfill({contentType:'text/html',body:'<!doctype html><p>Resposta interrompida para o teste.</p>'});
@@ -66,6 +70,9 @@ try {
   await page.goto('http://localhost:4173');
   await page.getByText('Entrar com Google (teste)',{exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('#auth-panel').hidden);
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector('#auth-panel').hidden);
+  assert.equal(await page.locator('#connection').innerText(),'operator@example.com','Recarregar restaura e valida a sessão sem clicar no login');
   await fs.mkdir('outputs/ui',{recursive:true});
   await page.evaluate(()=>{document.querySelector('#toast').hidden=true;window.scrollTo(0,0);});
   await page.screenshot({path:'outputs/ui/desktop.png',fullPage:true});
@@ -166,6 +173,21 @@ try {
   await page.locator('button[value=next]').click();await wait('#modal[open]');
   assert.match(await page.locator('#modal').innerText(),/EQUIPAMENTO JÁ INVENTARIADO/);
   assert.equal(records.length,3,'Repetir após timeout não cria outra linha');
+  await page.locator('#modal').evaluate(dialog=>dialog.close());
+  // A restauração não pode contornar a validação da sessão no servidor.
+  rejectBootstrap=true;
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector('#connection').textContent==='Sessão expirada');
+  assert.equal(await page.evaluate(()=>sessionStorage.getItem('inventario-ti-google-session-v1')),null);
+  assert.equal(await page.locator('#auth-panel').evaluate(panel=>panel.hidden),false);
+  rejectBootstrap=false;
+  await page.getByText('Entrar com Google (teste)',{exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('#auth-panel').hidden);
+  await page.locator('#logout').click();
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector('#google-signin button'));
+  assert.equal(await page.locator('#auth-panel').evaluate(panel=>panel.hidden),false,'Sair remove a sessão persistida');
+  assert.equal(await page.evaluate(()=>sessionStorage.getItem('inventario-ti-google-session-v1')),null);
   // Cenário sem configuração independente dos identificadores reais de produção.
   await context.route('**/config.js',route => route.fulfill({contentType:'text/javascript',body:'window.INVENTARIO_CONFIG={};'}));
   const publicPage = await context.newPage();

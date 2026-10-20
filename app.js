@@ -373,15 +373,22 @@ $('#logout').onclick = () => {
   state.catalogs = { setores:[],tipos:[],modelos:[] }; state.indicators = null; state.session = null; state.draft = {}; state.editing = null; state.queryItems = []; state.duplicate = null;
   $('#connection').textContent = 'Não conectado'; $('#auth-panel').hidden = false; $('#logout').hidden = true; render();
 };
-async function onCredential(response) {
-  setCredential(response.credential); $('#connection').textContent = 'Conectando…';
+let connecting = false;
+async function onCredential(response, restoring = false) {
+  if (connecting) return;
+  connecting = true;
+  if (response) setCredential(response.credential);
+  $('#connection').textContent = restoring ? 'Restaurando sessão…' : 'Conectando…';
   try {
     const result = await api('bootstrap');
     state.catalogs = result.catalogs; state.indicators = result.indicators;
     $('#connection').textContent = result.email; $('#connection').classList.add('online');
     $('#auth-panel').hidden = true; $('#logout').hidden = false;
-    render(); toast('Conexão com o Google Sheets confirmada.');
-  } catch (error) { setCredential(''); $('#connection').textContent = 'Não conectado'; report(error); }
+    render(); if (!restoring) toast('Conexão com o Google Sheets confirmada.');
+  } catch (error) {
+    if (!restoring || ['UNAUTHORIZED','FORBIDDEN'].includes(error.code)) setCredential('');
+    $('#connection').textContent = 'Não conectado'; report(error);
+  } finally { connecting = false; }
 }
 async function initializeLogin() {
   if (!configured) {
@@ -391,8 +398,9 @@ async function initializeLogin() {
   }
   for (let attempt=0; attempt<40; attempt++) {
     if (window.google?.accounts?.id) {
-      window.google.accounts.id.initialize({ client_id:window.INVENTARIO_CONFIG.googleClientId,callback:onCredential,auto_select:false });
+      window.google.accounts.id.initialize({ client_id:window.INVENTARIO_CONFIG.googleClientId,callback:onCredential,auto_select:true });
       window.google.accounts.id.renderButton($('#google-signin'),{ theme:'outline',size:'large',text:'signin_with',locale:'pt-BR' });
+      if (!signedIn()) window.google.accounts.id.prompt();
       return;
     }
     await new Promise(resolve => setTimeout(resolve,250));
@@ -401,4 +409,6 @@ async function initializeLogin() {
   $('#retry-login').hidden = false;
 }
 $('#retry-login').onclick = initializeLogin;
-render(); initializeLogin();
+render();
+if (configured && signedIn()) onCredential(null, true);
+initializeLogin();

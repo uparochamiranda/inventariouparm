@@ -8,6 +8,8 @@ Site: https://uparochamiranda.github.io/inventariouparm/
 
 - Inventário por setor fixo ou por setor individual, com contador da sessão.
 - Câmera traseira, lanterna em aparelhos compatíveis, digitação manual e leitor USB/Bluetooth.
+- Leitura com correção de inclinação e foco contínuo quando suportado.
+- Login mantido ao atualizar a mesma aba, com credencial vigente em sessionStorage e validação no Apps Script. Sair remove a sessão; ao vencer, o Google pode exigir nova autenticação.
 - Cadastro de modelos e setores sem sair do inventário, com fabricante automático.
 - Salvar e próximo, prevenção de duplicidades no servidor com LockService.
 - Consulta, filtros, edição com detecção de conflitos e indicadores simples.
