@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#185adb">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="Inventário de equipamentos de TI por código de barras.">
+  <title>Inventário TI · Rocha Miranda</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./config.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#inicio"><span class="brand-icon">▥</span><span>Inventário <b>TI</b><small>ROCHA MIRANDA</small></span></a>
+    <p class="nav-caption">ESPAÇO DE TRABALHO</p>
+    <nav aria-label="Menu principal">
+      <a href="#inicio" data-nav="inicio" title="Visão geral"><span aria-hidden="true">◫</span> Visão geral</a>
+      <a href="#inventario" data-nav="inventario" title="Iniciar inventário"><span aria-hidden="true">▥</span> Iniciar inventário</a>
+      <a href="#consulta" data-nav="consulta" title="Consultar equipamentos"><span aria-hidden="true">⌕</span> Consultar equipamentos</a>
+      <a href="#cadastros" data-nav="cadastros" title="Cadastros"><span aria-hidden="true">▤</span> Cadastros</a>
+    </nav>
+    <div class="sidebar-note"><span class="dot"></span> Dados no Google Sheets<small>Acesso restrito aos operadores</small></div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar"><span>GESTÃO DE ATIVOS <span class="crumb">/ Inventário TI</span></span><div class="account"><span id="connection" class="connection">Não conectado</span><button id="logout" class="text-button" hidden>Sair</button><span class="avatar" aria-hidden="true">TI</span></div></header>
+    <main id="main" tabindex="-1">
+      <section id="auth-panel" class="auth-panel" aria-label="Conexão com a planilha"><div><strong id="auth-title">Conecte sua conta Google</strong><p id="auth-description">Entre com uma conta autorizada para acessar os equipamentos.</p></div><div id="google-signin"></div><button id="retry-login" class="secondary" hidden>Entrar novamente</button></section>
+      <div id="view"></div>
+    </main>
+    <footer>Inventário TI <span>Organização em cada leitura.</span></footer>
+  </div>
+  <dialog id="modal" aria-labelledby="modal-title"><div id="modal-content"></div></dialog>
+  <dialog id="camera-dialog" aria-labelledby="camera-title"><div class="dialog-heading"><h2 id="camera-title">Ler código</h2><button id="close-camera" class="icon-button" aria-label="Fechar câmera">×</button></div><p>Aponte a câmera para o código de barras ou QR Code.</p><div class="camera-frame"><video id="camera" muted playsinline></video><div class="scan-line"></div></div><p id="camera-status" role="status">Abrindo câmera traseira…</p><button id="manual-camera" class="secondary full">Digitar código manualmente</button></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

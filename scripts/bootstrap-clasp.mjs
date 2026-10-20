@@ -1,0 +1,24 @@
+// Instala o CLI oficial em uma pasta local ignorada pelo Git, sem scripts de instalação.
+import fs from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+const root = path.resolve('.tools');
+await fs.mkdir(root,{recursive:true});
+const metadataResponse = await fetch('https://registry.npmjs.org/npm/latest');
+if (!metadataResponse.ok) throw new Error('Não foi possível consultar o npm oficial.');
+const metadata = await metadataResponse.json();
+const archiveResponse = await fetch(metadata.dist.tarball);
+if (!archiveResponse.ok) throw new Error('Não foi possível baixar o npm oficial.');
+const archive = Buffer.from(await archiveResponse.arrayBuffer());
+const integrity = 'sha512-'+createHash('sha512').update(archive).digest('base64');
+if (integrity !== metadata.dist.integrity) throw new Error('Integridade do pacote npm inválida.');
+const archivePath = path.join(root,'npm.tgz');
+const npmRoot = path.join(root,'npm');
+await fs.mkdir(npmRoot,{recursive:true});
+await fs.writeFile(archivePath,archive);
+const extraction = spawnSync('python',['-m','tarfile','-e',archivePath,npmRoot,'--filter','data'],{stdio:'inherit'});
+if (extraction.status !== 0) throw new Error('Falha ao extrair npm.');
+console.log('npm oficial',metadata.version);
+const install = spawnSync(process.execPath,[path.join(npmRoot,'package/bin/npm-cli.js'),'install','--prefix',path.join(root,'clasp'),'--cache',path.join(root,'npm-cache'),'--ignore-scripts','--no-audit','--no-fund','@google/clasp'],{stdio:'inherit',shell:false});
+if (install.status !== 0) process.exit(install.status || 1);

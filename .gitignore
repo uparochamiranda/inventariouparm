@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.clasp.json
+.clasprc.json
+.tools/
+.env*
+test-results/
+outputs/
