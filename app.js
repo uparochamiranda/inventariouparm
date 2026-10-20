@@ -63,7 +63,15 @@ function equipment() {
   view.innerHTML = heading(state.editing ? 'EQUIPAMENTO EXISTENTE' : 'LEITURA EM SEQUÊNCIA', state.editing ? 'Atualizar equipamento' : 'Novo equipamento', state.editing ? 'Confira as informações antes de confirmar a alteração.' : 'Leia o código, selecione o modelo e continue.', `<span class="session-count">${s?.count ?? 0} cadastrados nesta sessão</span>`) +
     (s ? `<div class="session-bar"><div><span class="dot"></span><strong>${fixed ? 'Setor atual: ' + esc(sector?.NOME_SETOR || 'Selecione um setor ativo') : 'Setor individual'}</strong><small>${fixed ? 'Mantido em todas as leituras' : 'Escolha o setor de cada equipamento'}</small></div><div>${s.mode === 'sector' && !state.editing ? '<button class="text-button" data-action="switch-sector">Trocar setor</button>' : ''}<button class="text-button" data-action="finish">Finalizar inventário</button></div></div>` : '') +
     `<form id="equipment-form" class="panel equipment-panel"><div class="form-section-title"><span>01</span><h2>Identificação do equipamento</h2></div><label for="codigo">Código de barras <span class="required">*</span></label><div class="code-row"><input id="codigo" name="codigo" value="${esc(d.codigo)}" required maxlength="256" placeholder="Leia ou digite o código" autocomplete="off" spellcheck="false"><button type="button" class="primary" data-action="scan">▥ &nbsp; Iniciar leitura</button></div><p class="field-help">Câmera, digitação manual ou leitor USB / Bluetooth.</p><div class="form-grid"><div><label for="setorId">Setor <span class="required">*</span></label><select id="setorId" name="setorId" required ${fixed ? 'disabled' : ''}>${options(state.catalogs.setores.filter(active),'ID','NOME_SETOR',d.setorId)}</select>${!fixed ? '<button type="button" class="text-button" data-action="new-sector">+ Cadastrar setor</button>' : ''}</div><div><label for="patrimonio">Patrimônio <small>opcional</small></label><input id="patrimonio" name="patrimonio" value="${esc(d.patrimonio)}" maxlength="100" placeholder="Número do patrimônio"></div></div><div class="form-section-title second"><span>02</span><h2>Tipo e modelo</h2></div><div class="form-grid"><div><label for="tipoId">Tipo de equipamento <span class="required">*</span></label><select id="tipoId" name="tipoId" required>${options(state.catalogs.tipos.filter(active),'ID','NOME_TIPO',d.tipoId)}</select></div><div><label for="model-search">Pesquisar modelos</label><input id="model-search" type="search" placeholder="Fabricante ou nome do modelo" autocomplete="off"></div><div><label for="modeloId">Modelo <span class="required">*</span></label><select id="modeloId" name="modeloId" required></select><button type="button" class="text-button" data-action="new-model">+ Cadastrar novo modelo</button></div><div><label for="fabricante">Fabricante</label><input id="fabricante" readonly placeholder="Preenchido pelo modelo"></div></div><label for="observacao">Observação <small>opcional</small></label><textarea id="observacao" name="observacao" rows="3" maxlength="2000" placeholder="Estado do equipamento ou outra informação útil">${esc(d.observacao)}</textarea><div class="form-footer"><span>* Campos obrigatórios</span><div><button type="button" class="secondary" data-action="cancel-equipment">${state.editing ? 'Cancelar edição' : 'Limpar campos'}</button><button type="submit" class="secondary" name="intent" value="stay">${state.editing ? 'Salvar alterações' : 'Salvar equipamento'}</button><button type="submit" class="primary" name="intent" value="next">${state.editing ? 'Salvar e próximo' : 'SALVAR E PRÓXIMO'} &nbsp; →</button></div></div></form>`;
+  $('.code-row').insertAdjacentHTML('afterend','<button type="button" class="text-button manual-entry-button" data-action="manual-entry">Digitar código manualmente</button>');
   updateModels();
+}
+function enterCodeManually() {
+  closeCamera();
+  const input = $('#codigo');
+  if (!input) return;
+  input.focus(); input.select();
+  input.scrollIntoView({ behavior:'smooth', block:'center' });
 }
 function readDraft() {
   const form = $('#equipment-form');
@@ -251,6 +259,7 @@ const actions = {
   'cancel-equipment': () => confirmDialog(state.editing ? 'Cancelar edição?' : 'Limpar formulário?', 'Os campos ainda não salvos serão descartados.', 'confirm-clear'),
   'confirm-clear': () => { modal.close(); const hadEdit = !!state.editing; state.editing = null; state.draft = {}; if (hadEdit && !state.session) location.hash = 'consulta'; else equipment(); },
   'scan': scan,
+  'manual-entry': enterCodeManually,
   'duplicate-view': () => openDialog(dialogHeading('Consultar equipamento') + detailMarkup(state.duplicate) + '<div class="dialog-actions"><button class="secondary" data-action="close-modal">Fechar</button><button class="primary" data-action="duplicate-edit">Atualizar informações</button></div>'),
   'duplicate-edit': () => editEquipment(state.duplicate),
   'record-view': button => { state.duplicate = state.queryItems.find(r => r.ID === button.dataset.id); actions['duplicate-view'](); },
@@ -306,7 +315,7 @@ document.addEventListener('change', event => {
 });
 modal.addEventListener('cancel', event => { if (state.saving) event.preventDefault(); });
 $('#close-camera').onclick = closeCamera;
-$('#manual-camera').onclick = () => { closeCamera(); $('#codigo')?.focus(); };
+$('#manual-camera').onclick = enterCodeManually;
 $('#camera-dialog').addEventListener('cancel', () => stopScanner($('#camera')));
 window.addEventListener('hashchange', () => { readDraft(); closeCamera(); render(); });
 window.addEventListener('pagehide', () => stopScanner($('#camera')));
