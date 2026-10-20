@@ -14,12 +14,20 @@ function properties_() {
   var properties = PropertiesService.getScriptProperties();
   // Somente valores fixos definidos pelo responsável no código publicado.
   // Requisições HTTP nunca podem fornecer ou alterar a configuração do servidor.
-  if (typeof DEPLOYMENT_DEFAULTS_ === 'object') {
+  if (typeof DEPLOYMENT_DEFAULTS_ === 'object' && Object.keys(DEPLOYMENT_DEFAULTS_).length) {
+    var configVersion = typeof DEPLOYMENT_DEFAULTS_VERSION_ === 'string' ? DEPLOYMENT_DEFAULTS_VERSION_ : 'initial';
+    if (properties.getProperty('INVENTARIO_CONFIG_VERSION') === configVersion) return properties;
     var missing = {};
     Object.keys(DEPLOYMENT_DEFAULTS_).forEach(function(key) {
       if (!properties.getProperty(key)) missing[key] = DEPLOYMENT_DEFAULTS_[key];
     });
-    if (Object.keys(missing).length) properties.setProperties(missing, false);
+    if (DEPLOYMENT_DEFAULTS_.ALLOWED_EMAILS) {
+      var emails = (properties.getProperty('ALLOWED_EMAILS') || '').split(',').map(function(email){return email.trim().toLowerCase();}).filter(Boolean);
+      DEPLOYMENT_DEFAULTS_.ALLOWED_EMAILS.split(',').forEach(function(email){if(emails.indexOf(email)===-1) emails.push(email);});
+      missing.ALLOWED_EMAILS=emails.join(',');
+    }
+    missing.INVENTARIO_CONFIG_VERSION=configVersion;
+    properties.setProperties(missing, false);
   }
   return properties;
 }

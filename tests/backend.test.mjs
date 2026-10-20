@@ -53,7 +53,7 @@ function fixture() {
     Utilities:{getUuid:randomUUID,DigestAlgorithm:{SHA_256:'sha256'},computeDigest:(alg,value) => [...createHash(alg).update(value).digest()],base64EncodeWebSafe:value => Buffer.from(value).toString('base64url'),formatDate:(value,tz,pattern) => pattern === 'yyyy-MM-dd' ? new Intl.DateTimeFormat('en-CA',{timeZone:tz}).format(value) : '12:30:00'}
   });
   for (const file of ['JwtLibrary.gs','Auth.gs','Configure.gs','Code.gs']) vm.runInContext(readFileSync(new URL('../apps-script/'+file,import.meta.url),'utf8'),context,{filename:file});
-  context.DEPLOYMENT_DEFAULTS_ = { ALLOWED_ORIGIN:'https://uparochamiranda.github.io' };
+  context.DEPLOYMENT_DEFAULTS_ = { ALLOWED_ORIGIN:'https://uparochamiranda.github.io',ALLOWED_EMAILS:'operator@example.com' };
   function rpc(action,data = {}, credential = token(), overrides = {}) {
     const output = context.doPost({parameter:{payload:JSON.stringify({action,data,token:credential,requestId:'a'.repeat(64),origin:props.ALLOWED_ORIGIN,...overrides})}}).html;
     const json = output.match(/window\.top\.postMessage\((.*),"https:\/\/uparochamiranda.github.io"\);/s)?.[1];
@@ -87,6 +87,14 @@ test('preenche configuração ausente somente com valores publicados sem remover
   assert.equal(f.props.ALLOWED_ORIGIN,'https://uparochamiranda.github.io');
   assert.equal(f.props.GOOGLE_CLIENT_ID,'test.apps.googleusercontent.com','Preserva as propriedades já configuradas');
   assert.equal(response.error.code,'UNAUTHORIZED');
+  assert.equal(f.writes,0);
+});
+test('mudanças manuais na lista de acesso são respeitadas depois da migração',() => {
+  const f=fixture();
+  assert.equal(f.rpc('bootstrap').ok,true);
+  f.props.ALLOWED_EMAILS='';
+  assert.equal(f.rpc('bootstrap').error.code,'FORBIDDEN');
+  assert.equal(f.props.ALLOWED_EMAILS,'');
   assert.equal(f.writes,0);
 });
 test('salva com zeros, fabricante do servidor, consulta e impede duplicação dentro do lock',() => {

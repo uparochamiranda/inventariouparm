@@ -19,7 +19,9 @@
 
 ## Diagnóstico HTTP da implantação fornecida
 
-A URL `/exec` fornecida pelo responsável foi acessada sem credenciais. O GET respondeu HTTP 200 com a mensagem do Inventário TI indicando API ativa. O POST de diagnóstico, sem token e com ação de leitura, respondeu `Configure ALLOWED_ORIGIN nas propriedades do script.`. Nenhum equipamento foi enviado ou gravado. Isso confirma que a implantação existe e contém o código, mas as propriedades ainda precisam ser verificadas. O diagnóstico não comprova acesso à planilha.
+A URL `/exec` fornecida pelo responsável foi acessada sem credenciais. O GET respondeu HTTP 200 com a mensagem de API ativa. Após a configuração do servidor, o POST sem token respondeu `UNAUTHORIZED`, como esperado. O mesmo bloqueio foi confirmado no navegador, usando o site realmente publicado no GitHub Pages e o transporte real por iframe. Nenhum equipamento foi enviado ou gravado por esses testes.
+
+O workflow do GitHub Pages concluiu com sucesso e o site publicado foi conferido em viewport de celular sem rolagem horizontal. O teste com login Google em uma janela automatizada foi bloqueado pelo próprio Google como navegador não seguro; esse bloqueio não foi contornado. O teste de gravação autenticada na planilha real permanece pendente de login no navegador habitual do operador. O diagnóstico temporário de escrita não foi executado e foi removido do código de produção.
 
 Para repetir apenas esse diagnóstico público, execute `node scripts/probe-live.mjs` com acesso à rede. Os HTMLs ficam em `outputs/live/`, fora do Git e do site publicado.
 
